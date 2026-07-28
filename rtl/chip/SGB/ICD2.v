@@ -21,6 +21,7 @@ module ICD2(
 	input       [1:0] sgb_speed,
 	output reg        gb_rst_n,
 	output            gb_clk_en,
+	output            gb_clk_en_n,
 
 	input             ss_gb_paused
 
@@ -51,7 +52,8 @@ reg        old_lcd_vs;
 reg        cpurd_n_old, cpuwr_n_old;
 
 reg [31:0] gb_out_clk;
-reg        gb1_ce, gb2_ce;
+reg        gb_ce, gb_ce_n;
+reg        gb_2x_ce;
 
 // The ICD chip only has A22,A15-A11 and A3-A0 connected
 wire icd2_sel = ~ca[22] & (ca[15:13] == 3'b011); // 00-3F,80-BF:6xxN/7xxN
@@ -96,28 +98,6 @@ always @(posedge clk or negedge rst_n) begin
 end
 
 
-// Simple clock divider for SGB1 speed.
-wire [3:0] gb_clk_div =
-		(gb_cpu_speed == 2'd0) ? 4'd3 :
-		(gb_cpu_speed == 2'd1) ? 4'd4 :
-		(gb_cpu_speed == 2'd2) ? 4'd6 :
-		                         4'd8;
-
-always @(posedge clk) begin
-	if (~rst_n) begin
-		gb1_ce  <= 0;
-		gb_clk_cnt <= 0;
-	end else begin
-		gb_clk_cnt <= gb_clk_cnt + 1'b1;
-
-		gb1_ce <= 0;
-		if (gb_clk_cnt == gb_clk_div) begin
-			gb_clk_cnt <= 0;
-			gb1_ce  <= 1'b1;
-		end
-	end
-end
-
 localparam MCLK_NTSC = 21477270;
 localparam MCLK_PAL  = 21281370;
 localparam MCLK_SGB2 = 20971520;
@@ -125,29 +105,53 @@ localparam MCLK_SNES = 21101890; // Closest to 60.09Hz refresh rate to avoid stu
 
 // CEGen for async clock dividers (SGB2 & SNES speed)
 always @(posedge clk) begin
-	case ({ (sgb_speed == 2'd2), gb_cpu_speed })
-		{1'b0, 2'd0}: gb_out_clk <= MCLK_SGB2/4;
-		{1'b0, 2'd1}: gb_out_clk <= MCLK_SGB2/5;
-		{1'b0, 2'd2}: gb_out_clk <= MCLK_SGB2/7;
-		{1'b0, 2'd3}: gb_out_clk <= MCLK_SGB2/9;
+	case ({ sgb_speed, gb_cpu_speed })
+		{2'd0, 2'd0}: gb_out_clk <= pal ? MCLK_PAL*2/4 : MCLK_NTSC*2/4;
+		{2'd0, 2'd1}: gb_out_clk <= pal ? MCLK_PAL*2/5 : MCLK_NTSC*2/5;
+		{2'd0, 2'd2}: gb_out_clk <= pal ? MCLK_PAL*2/7 : MCLK_NTSC*2/7;
+		{2'd0, 2'd3}: gb_out_clk <= pal ? MCLK_PAL*2/9 : MCLK_NTSC*2/9;
 
-		{1'b1, 2'd0}: gb_out_clk <= MCLK_SNES/4;
-		{1'b1, 2'd1}: gb_out_clk <= MCLK_SNES/5;
-		{1'b1, 2'd2}: gb_out_clk <= MCLK_SNES/7;
-		{1'b1, 2'd3}: gb_out_clk <= MCLK_SNES/9;
+		{2'd1, 2'd0}: gb_out_clk <= MCLK_SGB2*2/4;
+		{2'd1, 2'd1}: gb_out_clk <= MCLK_SGB2*2/5;
+		{2'd1, 2'd2}: gb_out_clk <= MCLK_SGB2*2/7;
+		{2'd1, 2'd3}: gb_out_clk <= MCLK_SGB2*2/9;
+
+		{2'd2, 2'd0}: gb_out_clk <= MCLK_SNES*2/4;
+		{2'd2, 2'd1}: gb_out_clk <= MCLK_SNES*2/5;
+		{2'd2, 2'd2}: gb_out_clk <= MCLK_SNES*2/7;
+		{2'd2, 2'd3}: gb_out_clk <= MCLK_SNES*2/9;
+		default: ;
 	endcase
 end
 
-CEGen gb_ce
+CEGen gb_ce_gen
 (
 	.CLK(clk),
 	.RST_N(rst_n),
 	.IN_CLK(pal ? MCLK_PAL : MCLK_NTSC),
 	.OUT_CLK(gb_out_clk),
-	.CE(gb2_ce)
+	.CE(gb_2x_ce)
 );
 
-assign gb_clk_en = ~ss_gb_paused & ((sgb_speed == 2'd0) ? gb1_ce : gb2_ce);
+reg gb_ce_pol;
+always @(posedge clk) begin
+	if (~rst_n) begin
+		gb_ce  <= 1'b0;
+		gb_ce_n <= 1'b0;
+		gb_ce_pol <= 1'b0;
+	end else begin
+		gb_ce <= 1'b0;
+		gb_ce_n <= 1'b0;
+		if (gb_2x_ce & ~ss_gb_paused) begin
+			gb_ce <= ~gb_ce_pol;
+			gb_ce_n <= gb_ce_pol;
+			gb_ce_pol <= ~gb_ce_pol;
+		end
+	end
+end
+
+assign gb_clk_en = gb_ce;
+assign gb_clk_en_n = gb_ce_n;
 
 // SGB command packets
 always @(posedge clk or negedge rst_n) begin
