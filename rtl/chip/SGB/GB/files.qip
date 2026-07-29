@@ -3,6 +3,8 @@ set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) m
 set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) video.v ]
 set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) timer.v ]
 set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) sprites.v ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) sprites_extra.v ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) sprites_extra_store.v ]
 set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) gbc_snd.vhd ]
 set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) bus_savestates.vhd ]
 set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) reg_savestates.vhd ]

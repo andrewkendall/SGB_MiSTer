@@ -102,6 +102,7 @@ module main (
 
 	input       [2:0] GB_MAPPER,
 	input       [1:0] SGB_SPEED,
+	input             GB_EXTRA_SPRITES,
 
 	input             GB_AUDIO_NO_POPS,
 	output     [15:0] GB_AUDIO_L,
@@ -415,6 +416,7 @@ SGBMap SGBMap
 	.pal(PAL),
 	.sgb_speed(SGB_SPEED),
 	.gb_mapper(GB_MAPPER),
+	.extra_sprites(GB_EXTRA_SPRITES),
 
 	.rom_mask(ROM_MASK[18]),
 

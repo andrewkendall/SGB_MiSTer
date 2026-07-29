@@ -297,7 +297,7 @@ wire reset = RESET | buttons[1] | status[0] | cart_download | gb_cart_download |
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// X  XXXXX XXXXXX  X XX  XXXXXXXXX XXXXXXXXXXXX      XXX
+// X  XXXXX XXXXXX  X XX  XXXXXXXXX XXXXXXXXXXXXX     XXX
 
 `include "build_id.v"
 parameter CONF_STR = {
@@ -323,6 +323,8 @@ parameter CONF_STR = {
 	"D0-;",
 
 	"P1,Audio & Video;",
+	"P1-;",
+	"P1O[44],GB Extra sprites,No,Yes;",
 	"P1-;",
 	"P1o02,Aspect ratio,Original,Original GB,Full Screen,[ARC1],[ARC2];",
 	"P1O9B,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
@@ -610,6 +612,7 @@ main main
 
 	.GB_MAPPER(gb_mapper),
 	.SGB_SPEED(sgb_speed),
+	.GB_EXTRA_SPRITES(status[44]),
 
 	.GB_AUDIO_NO_POPS(status[43]),
 	.GB_AUDIO_L(GB_AUDIO_L),

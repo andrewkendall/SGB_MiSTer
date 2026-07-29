@@ -3,6 +3,7 @@ module GBTop(
 	input         reset,
 
 	input         clk_en,
+	input         clk_en_n,
 
 	input         cart_download,
 	input         boot_download,
@@ -38,6 +39,7 @@ module GBTop(
 	output        cart_has_save,
 
 	input   [2:0] mapper_sel,
+	input         extra_sprites,
 
 	input         audio_no_pops,
 	output [15:0] audio_l,
@@ -179,11 +181,13 @@ gb gb (
 
 	.clk_sys     ( clk    ),
 	.ce          ( clk_en    ),   // the whole gameboy runs on 4mhnz
+	.ce_n        ( clk_en_n  ),   // 4MHz falling edge clock enable
 	.ce_2x       ( 0  ),   // ~8MHz in dualspeed mode (GBC)
 
 	.isGBC       ( 0  ),
 	.isGBC_game  ( 0 ),
 	.isSGB       ( 1'b1 ),
+	.extra_spr_en(extra_sprites),
 
 	.joy_p54     ( joy_p54     ),
 	.joy_din     ( joy_din      ),

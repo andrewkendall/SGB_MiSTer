@@ -64,6 +64,7 @@ module SGBMap(
 	input             pal,
 	input       [1:0] sgb_speed,
 	input       [2:0] gb_mapper,
+	input             extra_sprites,
 
 	input             rom_mask,
 
@@ -122,7 +123,7 @@ wire  [1:0] joy_p54;
 wire  [3:0] joy_do;
 
 wire        gb_rst_n;
-wire        gb_clk_en;
+wire        gb_clk_en, gb_clk_en_n;
 wire  [7:0] icd_do;
 
 wire        gb_cpu_act;
@@ -153,6 +154,7 @@ ICD2 ICD2
 
 	.gb_rst_n(gb_rst_n),
 	.gb_clk_en(gb_clk_en),
+	.gb_clk_en_n(gb_clk_en_n),
 
 	.ss_gb_paused(ss_gb_paused)
 );
@@ -178,6 +180,7 @@ GBTop GBTop
 	.reset          ( ~(rst_n & gb_rst_n) ),
 
 	.clk_en         (gb_clk_en),
+	.clk_en_n       (gb_clk_en_n),
 
 	.cart_download  (io_gb_cart),
 	.boot_download  (io_sgb_boot),
@@ -204,6 +207,7 @@ GBTop GBTop
 	.cart_has_save  (gb_has_save),
 
 	.mapper_sel     (gb_mapper),
+	.extra_sprites  (extra_sprites),
 
 	.lcd_clkena     (lcd_clkena),
 	.lcd_data       (lcd_data),
