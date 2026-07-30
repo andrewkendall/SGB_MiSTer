@@ -378,9 +378,10 @@ end
 // --------------------------------------------------------------------
 
 wire audio_rd = !cpu_rd_n && sel_audio;
-wire audio_wr = !cpu_wr_n_edge && sel_audio;
+wire audio_wr = !cpu_wr_n && sel_audio;
 reg [7:0] snd_d_in;
 wire [7:0] snd_d_out;
+wire apu_framecount_en;
 
 // Megaduck has reversed nybbles for some registers
 always @(*) begin
@@ -403,7 +404,9 @@ gbc_snd audio (
 	.clk				( clk_sys			),
 	.ce            ( ce           ),
 	.reset			( reset_ss			),
-	
+
+	.apu_framecount_en		( apu_framecount_en ),
+
 	.is_gbc        ( isGBC           ),
 	.remove_pops   ( audio_no_pops   ),
 
@@ -607,8 +610,10 @@ end
 
 timer timer (
 	.reset	    		 ( reset_ss      ),
-	.clk_sys		       ( clk_sys       ),
-	.ce                  ( ce_cpu        ), //2x in fast mode
+	.clk_sys		     ( clk_sys       ),
+	.ce                  ( ce_cpu        ), // 2x in fast mode
+	.ce_4MHz 		     (ce), // Always 4 MiHz
+	.cpu_speed			 ( cpu_speed 	 ),
 		 
 	.irq         		 ( timer_irq     ),
 				 
@@ -617,7 +622,9 @@ timer timer (
 	.cpu_wr      		 ( !cpu_wr_n_edge ),
 	.cpu_di      		 ( cpu_do        ),
 	.cpu_do      		 ( timer_do      ),
-	
+
+	.apu_framecount_en	 ( apu_framecount_en),
+
 	.SaveStateBus_Din  (SaveStateBus_Din ), 
 	.SaveStateBus_Adr  (SaveStateBus_Adr ),
 	.SaveStateBus_wren (SaveStateBus_wren),
