@@ -11,6 +11,7 @@ module msu_audio
 	input      [7:0]  ctl_volume,
 	input             ctl_repeat,
 	input             ctl_play,
+	input             ctl_resume,
 	output reg        ctl_stop,
 
 	input      [31:0] track_size,
@@ -20,12 +21,15 @@ module msu_audio
 	input             audio_data_wr,
 	input      [15:0] audio_data,
 
+	input             audio_ack,
 	output reg        audio_req,
 	output reg        audio_seek,
 	output reg [21:0] audio_sector,
-	input             audio_ack,
- 
-	output     [15:0] audio_l,	 
+	input      [21:0] resume_sector,
+	output     [31:0] audio_loop_index,
+	input      [31:0] resume_loop_index,
+
+	output     [15:0] audio_l,
 	output     [15:0] audio_r
 );
 
@@ -33,18 +37,18 @@ localparam WAITING_FOR_PLAY_STATE = 0;
 localparam WAITING_ACK_STATE      = 1;
 localparam PLAYING_STATE          = 2;
 localparam PLAYING_CHECKS_STATE   = 3;
-localparam END_SECTOR_STATE       = 5;
+localparam END_SECTOR_STATE       = 4;
+
+reg [31:0] loop_index;
+assign     audio_loop_index = loop_index;
+reg  [2:0] state;
+reg        partial_sector_state;
+reg        looping;
 
 always @(posedge clk) begin
-	reg [31:0] loop_index = 0;
-	reg  [7:0] state = WAITING_FOR_PLAY_STATE;
-	reg        partial_sector_state = 0;
-	reg        looping;
-
-	ctl_stop <= 0;
-
 	if (reset) begin
 		state <= WAITING_FOR_PLAY_STATE;
+		ctl_stop <= 0;
 		audio_sector <= 0;
 		audio_seek <= 0;
 		fifo_wren <= 0;
@@ -52,19 +56,23 @@ always @(posedge clk) begin
 	end
 	else begin
 
+		// Set/reset pulsed signals
+		ctl_stop <= 0;
+
 		// Loop sector handling - also need to take into account the 8 bytes for file header (msu1 and loop index = 8 bytes)
 		if (audio_sector == 0 && data_cnt == 1 && data_wr && audio_ack) loop_index <= data + 2;
 
 		case (state)
 			WAITING_FOR_PLAY_STATE:
 				begin
-					audio_sector <= 0;
 					audio_seek <= 0;
 					partial_sector_state <= 0;
 					fifo_wren <= 0;
 					looping <= 0;
 					audio_req <= 0;
-					if (~track_processing & ctl_play) begin
+					audio_sector <= ctl_resume ? resume_sector : 22'd0;
+					if (ctl_resume) loop_index <= resume_loop_index;
+					if (ctl_play && !ctl_stop) begin
 						audio_seek <= 1;
 						state <= WAITING_ACK_STATE;
 					end
@@ -150,17 +158,16 @@ always @(posedge clk) begin
 				end
 		endcase
 		
-		if(track_processing) state <= WAITING_FOR_PLAY_STATE;
+		if (track_processing) state <= WAITING_FOR_PLAY_STATE;
 	end
 end
 
 reg        data_wr;
 reg [31:0] data;
 reg  [7:0] data_cnt;
+reg  [8:0] cnt;
 
 always @(posedge clk) begin
-	reg [8:0] cnt;
-
 	data_wr <= 0;
 
 	if(~audio_download) begin
@@ -190,7 +197,7 @@ CEGen sample_clock
 	.CE(sample_ce)
 );
 
-wire        playing = ctl_play & ~track_processing & ~fifo_empty;
+wire        playing = ctl_play & ~fifo_empty;
 wire        fifo_full;
 wire  [9:0] fifo_usedw;
 wire        fifo_empty;
