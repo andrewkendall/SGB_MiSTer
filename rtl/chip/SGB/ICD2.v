@@ -29,7 +29,7 @@ module ICD2(
 
 reg  [7:0] packet_data[0:15];
 reg  [7:0] data;
-reg  [3:0] byte_cnt;
+reg  [4:0] byte_cnt;
 reg  [2:0] cnt;
 reg        old_p15, old_p14;
 reg        new_packet, byte_done, packet_end;
@@ -169,10 +169,11 @@ always @(posedge clk or negedge rst_n) begin
 					old_p15	   <= di[1];
 					byte_done  <= di[2];
 					new_packet <= di[3];
+					byte_cnt[4] <= di[5];
 				end
 				8'h01: begin
 					packet_end <= di[0];
-					byte_cnt   <= di[4:1];
+					byte_cnt[3:0] <= di[4:1];
 					cnt        <= di[7:5];
 				end
 				8'h02: data <= di;
@@ -190,33 +191,31 @@ always @(posedge clk or negedge rst_n) begin
 
 			// Reset pulse
 			if (~p15 & ~p14) begin
-				{cnt, byte_cnt, packet_end} <= 0;
-			end
-
-			if ( old_p15 & old_p14 & (p15 ^ p14) ) begin
-				if (~packet_end) begin
-					data <= {~p15,data[7:1]};
-					cnt <= cnt + 1'b1;
-					if (&cnt) byte_done <= 1'b1;
-				end
-			end
-
-			// Corrupt packet. p15 and p14 should both go high after one is low.
-			if ( (old_p15 ^ p15) & (old_p15 ^ old_p14) & (p15 ^ p14) ) begin
+				{ cnt, byte_cnt } <= 0;
 				packet_end <= 1'b1;
+			end
+
+			if ((~old_p15 | ~old_p14) & (p15 & p14)) begin
+				if (~old_p15 & ~old_p14) begin // 00 -> 11 Packet start
+					packet_end <= 1'b0;
+				end else if (~packet_end) begin	// 01/10 -> 11 Write bit
+					if (~byte_cnt[4]) begin
+						data <= {old_p14, data[7:1]};
+						cnt <= cnt + 1'b1;
+						if (&cnt) byte_done <= 1'b1;
+					end else begin
+						// End of packet
+						packet_end <= 1'b1;
+						new_packet <= 1'b1;
+					end
+				end
 			end
 
 			if (byte_done) begin
 				byte_done <= 0;
 				byte_cnt <= byte_cnt + 1'b1;
 
-				packet_data[byte_cnt] <= data;
-
-				// End of packet
-				if (&byte_cnt) begin
-					packet_end <= 1'b1;
-					new_packet <= 1'b1;
-				end
+				packet_data[byte_cnt[3:0]] <= data;
 			end
 		end
 
@@ -398,8 +397,8 @@ always @(posedge clk) begin
 		ss_do <= trn_data_q;
 	end else begin
 		case (ca[7:0])
-			8'h00: ss_do <= { 3'd0, old_lcd_vs, new_packet, byte_done, old_p15, old_p14 };
-			8'h01: ss_do <= { cnt, byte_cnt, packet_end };
+			8'h00: ss_do <= { 2'd0, byte_cnt[4], old_lcd_vs, new_packet, byte_done, old_p15, old_p14 };
+			8'h01: ss_do <= { cnt, byte_cnt[3:0], packet_end };
 			8'h02: ss_do <= data;
 			8'h03: ss_do <= { gb_rst_n, 1'd0, num_controllers, joypad_id, gb_cpu_speed };
 			8'h04: ss_do <= buttons1;
