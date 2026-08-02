@@ -49,6 +49,8 @@ module gb (
 	// WRAM or Cart RAM CS
 	output nCS,
 
+	output PHI,
+
 	input sgb_boot_download,
 	input         ioctl_wr,
 	input  [24:0] ioctl_addr,
@@ -110,9 +112,9 @@ module gb (
 localparam SAVESTATE_MODULES    = 8;
 wire [63:0] SaveStateBus_wired_or[0:SAVESTATE_MODULES-1];
 
-wire [54:0] SS_Top;
-wire [54:0] SS_Top_BACK;
-eReg_SavestateV #(0, 31, 54, 0, 64'h0000000000800001) iREG_SAVESTATE_Top (clk_sys, SaveStateBus_Din, SaveStateBus_Adr, SaveStateBus_wren, SaveStateBus_rst, SaveStateBus_wired_or[6], SS_Top_BACK, SS_Top);  
+wire [60:0] SS_Top;
+wire [60:0] SS_Top_BACK;
+eReg_SavestateV #(0, 31, 60, 0, 64'h1000000000800000) iREG_SAVESTATE_Top (clk_sys, SaveStateBus_Din, SaveStateBus_Adr, SaveStateBus_wren, SaveStateBus_rst, SaveStateBus_wired_or[6], SS_Top_BACK, SS_Top);  
 
 wire [10:0] SS_Top2;
 wire [10:0] SS_Top2_BACK;
@@ -261,6 +263,8 @@ wire cpu_rd_n;
 wire cpu_iorq_n;
 wire cpu_m1_n;
 wire cpu_mreq_n;
+wire cpu_halt_n;
+wire [2:0] cpu_tstate;
 
 wire clk = clk_sys & ce;
 
@@ -277,6 +281,44 @@ always  @ (posedge clk) begin
 end
 
 assign SaveStateBus_rst = reset_r;
+
+// Generate PHI signal. Normally the CPU runs from the PHI signal but the current CPU does not use it.
+// So here we sync to the CPU Tstates.
+reg [1:0] phi_clk_div;
+always @(posedge clk_sys) begin
+	if (reset_ss) begin
+		phi_clk_div <= SS_Top[58:57]; // 2'd0;
+	end else begin
+		if (ce) begin
+			phi_clk_div <= phi_clk_div + 1'b1;
+		end
+
+		if (cpu_clken & cpu_halt_n) begin
+			if (cpu_tstate == 3'd4) begin
+				phi_clk_div <= 2'd1;
+			end
+		end
+	end
+end
+
+wire cpu_phi = ~phi_clk_div[1] | ~cpu_halt_n;
+
+reg cpu_phi_d;
+
+assign SS_Top_BACK[56:55] = 0;
+assign SS_Top_BACK[58:57] = phi_clk_div;
+assign SS_Top_BACK[   59] = 0;
+assign SS_Top_BACK[   60] = cpu_phi_d;
+
+always @(posedge clk_sys) begin
+	if(reset_ss) cpu_phi_d <= SS_Top[60]; // 1'b1
+	else if (ce) cpu_phi_d <= cpu_phi;
+end
+
+wire cpu_phi_r_ce = ce & cpu_halt_n & (phi_clk_div == 2'd3);
+//wire cpu_phi_f_ce = ce & cpu_halt_n & (phi_clk_div == 2'd1);
+// There is an issue with falling edge missing when going out of Halt with the current CPU so do it another way.
+wire cpu_phi_f_ce = ce & cpu_phi_d & ~cpu_phi;
 
 reg old_cpu_wr_n;
 
@@ -318,12 +360,13 @@ GBse cpu (
    .RD_n              ( cpu_rd_n        ),
    .WR_n              ( cpu_wr_n        ),
    .RFSH_n            (                 ),
-   .HALT_n            (                 ),
+   .HALT_n            ( cpu_halt_n      ),
    .BUSAK_n           (                 ),
    .A                 ( cpu_addr_raw        ),
    .DI                ( genie_ovr ? genie_data : cpu_di),
    .DO                ( cpu_do          ),
 	.STOP              ( cpu_stop        ),
+	.TS               ( cpu_tstate       ),
     .isGBC             ( isGBC           ),
    // savestates
    .SaveStateBus_Din  (SaveStateBus_Din ), 
@@ -667,7 +710,11 @@ video video (
 	.cpu_wr      ( !cpu_wr_n_edge ),
 	.cpu_di      ( cpu_do        ),
 	.cpu_do      ( video_do      ),
-	
+
+	.cpu_phi      ( cpu_phi       ),
+	.cpu_phi_r_ce ( cpu_phi_r_ce  ),
+	.cpu_phi_f_ce ( cpu_phi_f_ce  ),
+
 	.lcd_on      ( lcd_on        ),
 	.lcd_clkena  ( lcd_clkena    ),
 	.lcd_data    ( lcd_data      ),
@@ -938,6 +985,8 @@ assign ext_bus_di = (~isGBC & ext_bus_wram_sel) ? wram_do :
 assign cart_sel = ext_bus_rom_sel | ext_bus_cram_sel;
 assign cart_rd = cart_sel & ext_bus_rd;
 assign cart_wr = cart_sel & ext_bus_wr;
+
+assign PHI = cpu_phi;
 
 assign DMA_on = cart_sel & (hdma_active | dma_rd);
 
