@@ -1,0 +1,31 @@
+name: Build RBF
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ commander-buttons ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compile core (Quartus 17.0)
+        run: docker run --rm -v "$PWD:/build" raetro/quartus:17.0 quartus_sh --flow compile SGB
+
+      - name: Collect output
+        run: |
+          sudo mv output_files/SGB.rbf "SGB_$(date +%Y%m%d).rbf"
+          ls -la SGB_*.rbf
+
+      - name: Timing summary
+        if: always()
+        run: |
+          if [ -f output_files/SGB.sta.summary ]; then cat output_files/SGB.sta.summary; fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SGB-rbf
+          path: SGB_*.rbf
