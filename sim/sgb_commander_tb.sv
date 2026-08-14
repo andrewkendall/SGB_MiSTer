@@ -119,6 +119,11 @@ module sgb_commander_tb;
 		latch_state(12'h100);
 
 		// Returning the switch to SFC aborts a command and restores L/Y.
+		joy_in = 0;
+		tick;
+		joy_in = 12'h080;
+		tick;
+		latch_state(12'h100);
 		commander_en = 0;
 		tick;
 		joy_in = 12'h180;
