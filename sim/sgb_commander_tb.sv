@@ -3,7 +3,7 @@
 module sgb_commander_tb;
 	reg         clk = 0;
 	reg         reset = 0;
-	reg         latch = 0;
+	reg         frame = 0;
 	reg         commander_en = 0;
 	reg         dash_en = 0;
 	reg  [11:0] joy_in = 0;
@@ -13,7 +13,7 @@ module sgb_commander_tb;
 	(
 		.CLK(clk),
 		.RESET(reset),
-		.LATCH(latch),
+		.FRAME(frame),
 		.COMMANDER_EN(commander_en),
 		.DASH_EN(dash_en),
 		.JOY_IN(joy_in),
@@ -32,8 +32,8 @@ module sgb_commander_tb;
 	task expect_output(input [11:0] expected);
 	begin
 		if (joy_out !== expected) begin
-			$display("FAIL: expected %03h, got %03h (active=%b mute=%b step=%h latch=%b old_latch=%b)",
-			         expected, joy_out, dut.active, dut.mute, dut.step, latch, dut.old_latch);
+			$display("FAIL: expected %03h, got %03h (active=%b pending=%b mute=%b step=%h frame=%b old_frame=%b)",
+			         expected, joy_out, dut.active, dut.pending, dut.mute, dut.step, frame, dut.old_frame);
 			$display("      seq=%03h idle=%03h joy_in=%03h commander_en=%b", dut.seq,
 			         dut.commander_idle, joy_in, commander_en);
 			$fatal(1);
@@ -41,12 +41,12 @@ module sgb_commander_tb;
 	end
 	endtask
 
-	task latch_state(input [11:0] expected);
+	task frame_state(input [11:0] expected);
 	begin
-		latch = 1;
+		frame = 1;
 		tick;
 		expect_output(expected);
-		latch = 0;
+		frame = 0;
 		tick;
 	end
 	endtask
@@ -70,21 +70,22 @@ module sgb_commander_tb;
 		tick;
 		expect_output(12'h300);
 
-		// Y/Speed is consumed and emits the exact three-mode latch sequence.
+		// Y/Speed is consumed and emits the exact three-mode frame sequence.
 		joy_in = 0;
 		tick;
 		joy_in = 12'h080;
 		tick;
-		expect_output(12'h100);
-		latch_state(12'h100);
-		latch_state(12'h200);
-		latch_state(12'h000);
-		latch_state(12'h200);
-		latch_state(12'h100);
-		latch_state(12'h000);
-		latch_state(12'h100);
-		latch_state(12'h200);
-		latch_state(12'h000);
+		expect_output(12'h000);
+		frame_state(12'h100);
+		frame_state(12'h200);
+		frame_state(12'h000);
+		frame_state(12'h200);
+		frame_state(12'h100);
+		frame_state(12'h000);
+		frame_state(12'h100);
+		frame_state(12'h200);
+		frame_state(12'h000);
+		frame_state(12'h000);
 		expect_output(12'h000);
 
 		// Release and press Y again with Dash enabled; state 9 is Y+Right.
@@ -93,37 +94,39 @@ module sgb_commander_tb;
 		dash_en = 1;
 		joy_in = 12'h080;
 		tick;
-		latch_state(12'h100);
-		latch_state(12'h200);
-		latch_state(12'h000);
-		latch_state(12'h200);
-		latch_state(12'h100);
-		latch_state(12'h000);
-		latch_state(12'h100);
-		latch_state(12'h200);
-		latch_state(12'h081);
+		frame_state(12'h100);
+		frame_state(12'h200);
+		frame_state(12'h000);
+		frame_state(12'h200);
+		frame_state(12'h100);
+		frame_state(12'h000);
+		frame_state(12'h100);
+		frame_state(12'h200);
+		frame_state(12'h081);
+		frame_state(12'h000);
 
 		// L/Mute is consumed and emits the inverse eight-state sequence.
 		joy_in = 0;
 		tick;
 		joy_in = 12'h100;
 		tick;
-		expect_output(12'h200);
-		latch_state(12'h200);
-		latch_state(12'h100);
-		latch_state(12'h000);
-		latch_state(12'h100);
-		latch_state(12'h200);
-		latch_state(12'h000);
-		latch_state(12'h200);
-		latch_state(12'h100);
+		expect_output(12'h000);
+		frame_state(12'h200);
+		frame_state(12'h100);
+		frame_state(12'h000);
+		frame_state(12'h100);
+		frame_state(12'h200);
+		frame_state(12'h000);
+		frame_state(12'h200);
+		frame_state(12'h100);
+		frame_state(12'h000);
 
 		// Returning the switch to SFC aborts a command and restores L/Y.
 		joy_in = 0;
 		tick;
 		joy_in = 12'h080;
 		tick;
-		latch_state(12'h100);
+		frame_state(12'h100);
 		commander_en = 0;
 		tick;
 		joy_in = 12'h180;

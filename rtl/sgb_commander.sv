@@ -5,16 +5,15 @@
 // The SGB BIOS recognizes the Commander's Speed and Mute functions by
 // comparing the full 16-bit controller word on consecutive controller
 // reads against a state table (all SGB1 revisions and SGB2 carry the
-// same tables at $01:E389/$01:E39B). The real Commander advanced its
-// output in step with the console's controller latch, so this module
-// does the same: one table entry per latch, replacing the pad state on
-// port 1 while a sequence plays.
+// same tables at $01:E389/$01:E39B). Each table entry is presented for
+// one SNES video frame, before that frame's automatic controller poll.
+// This also avoids advancing on unrelated manual controller strobes.
 
 module sgb_commander
 (
 	input         CLK,
 	input         RESET,
-	input         LATCH,        // SNES joypad strobe (JOY_STRB)
+	input         FRAME,        // active-high SNES vertical blank
 	input         COMMANDER_EN, // SGB position of the Commander's SGB/SFC switch
 	input         DASH_EN,      // Speed cycles 4 modes including Dash
 
@@ -30,9 +29,10 @@ localparam [11:0] BTN_Y    = 12'h080;
 localparam [11:0] BTN_YRT  = 12'h081; // Y + Right ($4100), selects the Dash branch
 
 reg       active;
+reg       pending;
 reg       mute;
 reg [3:0] step;
-reg       old_latch;
+reg       old_frame;
 reg       old_speed;
 reg       old_mute;
 
@@ -43,32 +43,42 @@ wire trig_mute  = COMMANDER_EN & JOY_IN[8];
 always @(posedge CLK) begin
 	if (RESET) begin
 		active <= 0;
+		pending <= 0;
 		mute   <= 0;
 		step   <= 0;
-		old_latch <= LATCH;
+		old_frame <= FRAME;
 		old_speed <= trig_speed;
 		old_mute  <= trig_mute;
 	end
 	else begin
-		old_latch <= LATCH;
+		old_frame <= FRAME;
 		old_speed <= trig_speed;
 		old_mute  <= trig_mute;
 
 		if (~COMMANDER_EN) begin
 			active <= 0;
+			pending <= 0;
 			mute   <= 0;
 			step   <= 0;
 		end
-		else if (~active) begin
-			if ((trig_speed & ~old_speed) | (trig_mute & ~old_mute)) begin
-				active <= 1;
+		else begin
+			if (~active & ~pending &
+			    ((trig_speed & ~old_speed) | (trig_mute & ~old_mute))) begin
+				pending <= 1;
 				mute   <= ~(trig_speed & ~old_speed);
-				step   <= 0;
 			end
-		end
-		else if (old_latch & ~LATCH) begin // current state was read; advance
-			step <= step + 1'd1;
-			if (step == (mute ? 4'd7 : 4'd8)) active <= 0;
+
+			if (~old_frame & FRAME) begin
+				if (active) begin
+					step <= step + 1'd1;
+					if (step == (mute ? 4'd7 : 4'd8)) active <= 0;
+				end
+				else if (pending) begin
+					active  <= 1;
+					pending <= 0;
+					step    <= 0;
+				end
+			end
 		end
 	end
 end
