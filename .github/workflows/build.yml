@@ -28,4 +28,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: SGB-rbf
-          path: SGB_*.rbf
+          path: |
+            SGB_*.rbf
+            output_files/SGB.map.rpt
+            output_files/SGB.fit.rpt
+            output_files/SGB.sta.summary

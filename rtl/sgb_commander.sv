@@ -68,16 +68,16 @@ always @(posedge CLK) begin
 				active <= 1;
 				mute   <= ~(trig_speed & ~old_speed);
 				step   <= 0;
-				timer  <= 0;
+				timer  <= frame_ticks - 1'b1;
 			end
 		end
-		else if (timer == frame_ticks - 1'b1) begin
-			timer <= 0;
+		else if (~|timer) begin
 			step <= step + 1'd1;
 			if (step == (mute ? 4'd7 : 4'd8)) active <= 0;
+			else timer <= frame_ticks - 1'b1;
 		end
 		else begin
-			timer <= timer + 1'd1;
+			timer <= timer - 1'd1;
 		end
 	end
 end
