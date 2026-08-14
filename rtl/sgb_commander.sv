@@ -1,3 +1,5 @@
+`timescale 1ns/1ps
+
 // HORI SGB Commander mode and button-sequence injection.
 //
 // The SGB BIOS recognizes the Commander's Speed and Mute functions by
@@ -66,25 +68,26 @@ always @(posedge CLK) begin
 		end
 		else if (old_latch & ~LATCH) begin // current state was read; advance
 			step <= step + 1'd1;
-			if (step == (mute ? 4'd8 : 4'd9)) active <= 0;
+			if (step == (mute ? 4'd7 : 4'd8)) active <= 0;
 		end
 	end
 end
 
-// Step 0 is one neutral read so the sequence always starts from a released
-// state regardless of what the player is holding. Mute is the Speed pattern
-// with L and R swapped, ending one state earlier.
+// Mute is the Speed pattern with L and R swapped, ending one state earlier.
+// The first command state must be present on the first controller read: the
+// BIOS advances its table index even on a mismatch, so a leading neutral read
+// would make every following state one position late.
 reg [11:0] seq;
 always_comb begin
 	case (step)
-		4'd1:    seq = mute ? BTN_R : BTN_L;
-		4'd2:    seq = mute ? BTN_L : BTN_R;
-		4'd4:    seq = mute ? BTN_L : BTN_R;
-		4'd5:    seq = mute ? BTN_R : BTN_L;
-		4'd7:    seq = mute ? BTN_R : BTN_L;
-		4'd8:    seq = mute ? BTN_L : BTN_R;
-		4'd9:    seq = DASH_EN ? BTN_YRT : BTN_NONE;
-		default: seq = BTN_NONE; // steps 0, 3, 6
+		4'd0:    seq = mute ? BTN_R : BTN_L;
+		4'd1:    seq = mute ? BTN_L : BTN_R;
+		4'd3:    seq = mute ? BTN_L : BTN_R;
+		4'd4:    seq = mute ? BTN_R : BTN_L;
+		4'd6:    seq = mute ? BTN_R : BTN_L;
+		4'd7:    seq = mute ? BTN_L : BTN_R;
+		4'd8:    seq = DASH_EN ? BTN_YRT : BTN_NONE;
+		default: seq = BTN_NONE; // steps 2 and 5
 	endcase
 end
 

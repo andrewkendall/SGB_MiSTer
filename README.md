@@ -23,7 +23,7 @@ The "SGB Speed" option in the OSD allows you to change the clock speed:
 Press L+R at the same time to enter the Super Game Boy boot rom's menu. If you'd like to manually start the animated screensaver for the alternate borders built into the Super Game Boy, then press L, L, L, L, R in order. You will hear a ding if the border supports the screensaver animations.
 
 ## SGB Commander controller
-Set **Hardware > Controller** to **SGB Commander** to reproduce the SGB position of the controller's SGB/SFC switch. No extra inputs need to be mapped: the standard SNES buttons automatically take the roles printed on the Commander:
+Set **Hardware > Controller** to **SGB Commander** to reproduce the SGB position of the [HORI SGB Commander](https://www.gameboymuseum.com/game-boy-hardware-guide/accessories/hsd-07/hori-sgb-commander)'s SGB/SFC switch. No extra inputs need to be mapped: the standard SNES buttons automatically take the roles printed on the Commander:
 * **Y / Speed** cycles the Game Boy speed: Normal, Super Slow, Slow. The **Commander Speed** option adds the Commander's hidden fourth Dash mode, which runs about 25% faster and may produce audio/visual noise (as on real hardware).
 * **L / Mute** toggles the Super Game Boy's sound on or off.
 * **R / Window** opens or closes the SGB menu (the controller sends L+R).
@@ -32,3 +32,5 @@ Set **Hardware > Controller** to **SGB Commander** to reproduce the SGB position
 Set **Controller** to **SNES** for the SFC switch position, where Y, X, R and L are ordinary SNES buttons.
 
 Speed and Mute are recognized by the SGB BIOS itself through the same frame-exact button sequences the real Commander sent, injected in sync with the controller latch. They work with every SGB BIOS revision (SGB1 v1.0/1.1/1.2 and SGB2) and, like the real Commander, only operate from controller port 1.
+
+The mode applies to MiSTer-mapped controllers on port 1. A SNAC SNES controller supplies its own raw serial data and is not translated.
