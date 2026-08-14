@@ -816,6 +816,7 @@ sgb_commander commander
 	.CLK(clk_sys),
 	.RESET(reset),
 	.FRAME(VBlank),
+	.LATCH(JOY_STRB),
 	.COMMANDER_EN(status[15]),
 	.DASH_EN(status[16]),
 

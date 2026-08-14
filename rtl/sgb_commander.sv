@@ -5,15 +5,17 @@
 // The SGB BIOS recognizes the Commander's Speed and Mute functions by
 // comparing the full 16-bit controller word on consecutive controller
 // reads against a state table (all SGB1 revisions and SGB2 carry the
-// same tables at $01:E389/$01:E39B). Each table entry is presented for
-// one SNES video frame, before that frame's automatic controller poll.
-// This also avoids advancing on unrelated manual controller strobes.
+// same tables at $01:E389/$01:E39B). Each table entry is held until it
+// has actually been latched by the console, then advanced at the next
+// SNES video frame. This keeps the macro aligned to controller polls and
+// prevents unrelated manual strobes from running through it too quickly.
 
 module sgb_commander
 (
 	input         CLK,
 	input         RESET,
 	input         FRAME,        // active-high SNES vertical blank
+	input         LATCH,        // SNES joypad strobe (JOY_STRB)
 	input         COMMANDER_EN, // SGB position of the Commander's SGB/SFC switch
 	input         DASH_EN,      // Speed cycles 4 modes including Dash
 
@@ -29,10 +31,10 @@ localparam [11:0] BTN_Y    = 12'h080;
 localparam [11:0] BTN_YRT  = 12'h081; // Y + Right ($4100), selects the Dash branch
 
 reg       active;
-reg       pending;
 reg       mute;
 reg [3:0] step;
 reg       old_frame;
+reg       seen_latch;
 reg       old_speed;
 reg       old_mute;
 
@@ -43,10 +45,10 @@ wire trig_mute  = COMMANDER_EN & JOY_IN[8];
 always @(posedge CLK) begin
 	if (RESET) begin
 		active <= 0;
-		pending <= 0;
 		mute   <= 0;
 		step   <= 0;
 		old_frame <= FRAME;
+		seen_latch <= 0;
 		old_speed <= trig_speed;
 		old_mute  <= trig_mute;
 	end
@@ -57,27 +59,27 @@ always @(posedge CLK) begin
 
 		if (~COMMANDER_EN) begin
 			active <= 0;
-			pending <= 0;
 			mute   <= 0;
 			step   <= 0;
+			seen_latch <= 0;
+		end
+		else if (~active) begin
+			if ((trig_speed & ~old_speed) | (trig_mute & ~old_mute)) begin
+				active <= 1;
+				mute   <= ~(trig_speed & ~old_speed);
+				step   <= 0;
+				seen_latch <= 0;
+			end
 		end
 		else begin
-			if (~active & ~pending &
-			    ((trig_speed & ~old_speed) | (trig_mute & ~old_mute))) begin
-				pending <= 1;
-				mute   <= ~(trig_speed & ~old_speed);
-			end
+			// ioport samples JOY_OUT throughout the high strobe. Do not
+			// advance until this state is known to have reached that latch.
+			if (LATCH) seen_latch <= 1;
 
-			if (~old_frame & FRAME) begin
-				if (active) begin
-					step <= step + 1'd1;
-					if (step == (mute ? 4'd7 : 4'd8)) active <= 0;
-				end
-				else if (pending) begin
-					active  <= 1;
-					pending <= 0;
-					step    <= 0;
-				end
+			if (~old_frame & FRAME & seen_latch) begin
+				seen_latch <= 0;
+				step <= step + 1'd1;
+				if (step == (mute ? 4'd7 : 4'd8)) active <= 0;
 			end
 		end
 	end
