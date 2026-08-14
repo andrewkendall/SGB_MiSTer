@@ -73,9 +73,13 @@ module sgb_commander_tb;
 		// Y/Speed is consumed and emits the exact three-mode frame sequence.
 		joy_in = 0;
 		tick;
+		frame = 1;
+		tick;
 		joy_in = 12'h080;
 		tick;
 		expect_output(12'h000);
+		frame = 0;
+		tick;
 		frame_state(12'h100);
 		frame_state(12'h200);
 		frame_state(12'h000);
