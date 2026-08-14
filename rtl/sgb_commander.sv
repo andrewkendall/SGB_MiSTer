@@ -1,4 +1,4 @@
-// HORI SGB Commander button injection.
+// HORI SGB Commander mode and button-sequence injection.
 //
 // The SGB BIOS recognizes the Commander's Speed and Mute functions by
 // comparing the full 16-bit controller word on consecutive controller
@@ -12,15 +12,11 @@ module sgb_commander
 (
 	input         CLK,
 	input         RESET,
-	input         LATCH,       // SNES joypad strobe (JOY_STRB)
-	input         DASH_EN,     // Speed cycles 4 modes including Dash
+	input         LATCH,        // SNES joypad strobe (JOY_STRB)
+	input         COMMANDER_EN, // SGB position of the Commander's SGB/SFC switch
+	input         DASH_EN,      // Speed cycles 4 modes including Dash
 
 	input  [11:0] JOY_IN,      // pad routed to port 1
-	input         TRIG_SPEED,
-	input         TRIG_MUTE,
-	input         TRIG_WINDOW,
-	input         TRIG_COLOR,
-
 	output [11:0] JOY_OUT
 );
 
@@ -28,34 +24,50 @@ module sgb_commander
 localparam [11:0] BTN_NONE = 12'h000;
 localparam [11:0] BTN_L    = 12'h100;
 localparam [11:0] BTN_R    = 12'h200;
-localparam [11:0] BTN_X    = 12'h040;
-localparam [11:0] BTN_LR   = BTN_L | BTN_R;
+localparam [11:0] BTN_Y    = 12'h080;
 localparam [11:0] BTN_YRT  = 12'h081; // Y + Right ($4100), selects the Dash branch
 
-reg       active = 0;
+reg       active;
 reg       mute;
 reg [3:0] step;
+reg       old_latch;
+reg       old_speed;
+reg       old_mute;
+
+// The printed Commander labels are SPEED-Y, COLOR-X, WINDOW-R and MUTE-L.
+wire trig_speed = COMMANDER_EN & JOY_IN[7];
+wire trig_mute  = COMMANDER_EN & JOY_IN[8];
 
 always @(posedge CLK) begin
-	reg old_latch, old_speed, old_mute;
-
-	old_latch <= LATCH;
-	old_speed <= TRIG_SPEED;
-	old_mute  <= TRIG_MUTE;
-
 	if (RESET) begin
 		active <= 0;
+		mute   <= 0;
+		step   <= 0;
+		old_latch <= LATCH;
+		old_speed <= trig_speed;
+		old_mute  <= trig_mute;
 	end
-	else if (~active) begin
-		if ((TRIG_SPEED & ~old_speed) | (TRIG_MUTE & ~old_mute)) begin
-			active <= 1;
-			mute   <= ~(TRIG_SPEED & ~old_speed);
+	else begin
+		old_latch <= LATCH;
+		old_speed <= trig_speed;
+		old_mute  <= trig_mute;
+
+		if (~COMMANDER_EN) begin
+			active <= 0;
+			mute   <= 0;
 			step   <= 0;
 		end
-	end
-	else if (old_latch & ~LATCH) begin // current state was read; advance
-		step <= step + 1'd1;
-		if (step == (mute ? 4'd8 : 4'd9)) active <= 0;
+		else if (~active) begin
+			if ((trig_speed & ~old_speed) | (trig_mute & ~old_mute)) begin
+				active <= 1;
+				mute   <= ~(trig_speed & ~old_speed);
+				step   <= 0;
+			end
+		end
+		else if (old_latch & ~LATCH) begin // current state was read; advance
+			step <= step + 1'd1;
+			if (step == (mute ? 4'd8 : 4'd9)) active <= 0;
+		end
 	end
 end
 
@@ -63,7 +75,7 @@ end
 // state regardless of what the player is holding. Mute is the Speed pattern
 // with L and R swapped, ending one state earlier.
 reg [11:0] seq;
-always @(*) begin
+always_comb begin
 	case (step)
 		4'd1:    seq = mute ? BTN_R : BTN_L;
 		4'd2:    seq = mute ? BTN_L : BTN_R;
@@ -76,8 +88,13 @@ always @(*) begin
 	endcase
 end
 
-assign JOY_OUT = active ? seq :
-                 (JOY_IN | (TRIG_WINDOW ? BTN_LR : BTN_NONE)
-                         | (TRIG_COLOR  ? BTN_X  : BTN_NONE));
+// In SGB mode, Y and L are command triggers rather than ordinary SNES inputs.
+// X remains X (Color), while R becomes L+R (Window). In SFC mode the pad is
+// passed through unchanged.
+wire [11:0] commander_idle = (JOY_IN & ~(BTN_Y | BTN_L)) |
+                             (JOY_IN[9] ? BTN_L : BTN_NONE);
+
+assign JOY_OUT = ~COMMANDER_EN ? JOY_IN :
+                 active        ? seq    : commander_idle;
 
 endmodule

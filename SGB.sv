@@ -145,7 +145,7 @@ wire reset = RESET | buttons[1] | status[0] | cart_download | gb_cart_download |
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// X  XXXXX XXXXXXX X XX  XXXXXXXXX XXXXXXXXXXXXX     XXX
+// X  XXXXX XXXXXXXXX XX  XXXXXXXXX XXXXXXXXXXXXX     XXX
 
 `include "build_id.v"
 parameter CONF_STR = {
@@ -191,15 +191,16 @@ parameter CONF_STR = {
 	"P2-;",
 	"P2OH,Multitap,Disabled,Port2;",
 	"P2O34,Serial,OFF,SNAC SNES,SNAC GB;",
+	"P2O[15],Controller,SNES,SGB Commander;",
+	"P2O[16],Commander Speed,3 modes,4 modes+Dash;",
 	"P2-;",
 
 	"-;",
 	"O56,Mouse,None,Port1,Port2;",
 	"O7,Swap Joysticks,No,Yes;",
-	"O[15],Commander Speed,3 modes,4 modes+Dash;",
 	"-;",
 	"R0,Reset;",
-	"J1,A,B,X,Y,L,R,Select,Start,SaveState,Speed,Mute,Window,Color;",
+	"J1,A,B,X,Y,L,R,Select,Start,SaveState;",
 	"I,",
 	"Slot=DPAD|Save/Load=Pause+DPAD,",
 	"Active Slot 1,",
@@ -238,7 +239,7 @@ wire [15:0] ioctl_dout;
 wire        ioctl_wr;
 wire  [7:0] ioctl_index;
 
-wire [16:0] joy0,joy1,joy2,joy3,joy4;
+wire [12:0] joy0,joy1,joy2,joy3,joy4;
 wire [24:0] ps2_mouse;
 wire [10:0] ps2_key;
 
@@ -805,8 +806,9 @@ video_mixer #(.LINE_LENGTH(520), .GAMMA(1)) video_mixer
 
 wire       JOY_STRB;
 
-// Commander functions only operate from controller port 1, as on real hardware
-wire [16:0] joy_p1 = (joy_swap ^ snac_snes) ? joy1 : joy0;
+// Commander functions only operate from controller port 1, as on real hardware.
+// Its SGB/SFC switch changes the roles of the standard Y, X, R and L buttons.
+wire [12:0] joy_p1 = (joy_swap ^ snac_snes) ? joy1 : joy0;
 wire [11:0] joy_p1_cmd;
 
 sgb_commander commander
@@ -814,14 +816,10 @@ sgb_commander commander
 	.CLK(clk_sys),
 	.RESET(reset),
 	.LATCH(JOY_STRB),
-	.DASH_EN(status[15]),
+	.COMMANDER_EN(status[15]),
+	.DASH_EN(status[16]),
 
 	.JOY_IN(joy_p1[11:0]),
-	.TRIG_SPEED(joy_p1[13]),
-	.TRIG_MUTE(joy_p1[14]),
-	.TRIG_WINDOW(joy_p1[15]),
-	.TRIG_COLOR(joy_p1[16]),
-
 	.JOY_OUT(joy_p1_cmd)
 );
 
