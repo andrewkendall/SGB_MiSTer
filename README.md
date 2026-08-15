@@ -31,6 +31,6 @@ Set **Hardware > Controller** to **SGB Commander** to reproduce the SGB position
 
 Set **Controller** to **SNES** for the SFC switch position, where Y, X, R and L are ordinary SNES buttons.
 
-Speed and Mute are recognized by the SGB BIOS itself through the same frame-exact button sequences the real Commander sent, with each state held for one NTSC or PAL video period. They work with every SGB BIOS revision (SGB1 v1.0/1.1/1.2 and SGB2) and, like the real Commander, only operate from controller port 1.
+Speed and Mute are recognized by the SGB BIOS itself through the same button sequences the real Commander sent. Each state advances only after a complete 16-bit controller read; the BIOS's shorter multitap-probe reads are ignored. They work with every SGB BIOS revision (SGB1 v1.0/1.1/1.2 and SGB2) and, like the real Commander, only operate from controller port 1.
 
 The mode applies to MiSTer-mapped controllers on port 1. A SNAC SNES controller supplies its own raw serial data and is not translated.

@@ -3,21 +3,18 @@
 // HORI SGB Commander mode and button-sequence injection.
 //
 // The SGB BIOS recognizes the Commander's Speed and Mute functions by
-// comparing the full 16-bit controller word on consecutive frames against
-// a state table. All SGB1 revisions and SGB2 carry the same tables at
-// $01:E389/$01:E39B. The Commander presents each entry for one console
-// video period; fixed master-clock counts preserve that cadence without
-// depending on the phase or number of controller strobes in a frame.
+// comparing the full 16-bit controller word on consecutive automatic reads
+// against a state table. All SGB1 revisions and SGB2 carry the same tables at
+// $01:E389/$01:E39B. The BIOS also performs two eight-clock manual reads per
+// frame while checking for a multitap, so a command advances only after the
+// 16th clock of a completed read.
 
 module sgb_commander
-#(
-	parameter [18:0] NTSC_FRAME_TICKS = 19'd357368,
-	parameter [18:0] PAL_FRAME_TICKS  = 19'd425568
-)
 (
 	input         CLK,
 	input         RESET,
-	input         PAL,
+	input         LATCH,        // SNES joypad strobe (JOY_STRB)
+	input         JOY_CLK,      // port 1 clock (JOY1_CLK)
 	input         COMMANDER_EN, // SGB position of the Commander's SGB/SFC switch
 	input         DASH_EN,      // Speed cycles 4 modes including Dash
 
@@ -35,49 +32,56 @@ localparam [11:0] BTN_YRT  = 12'h081; // Y + Right ($4100), selects the Dash bra
 reg        active;
 reg        mute;
 reg  [3:0] step;
-reg [18:0] timer;
+reg  [4:0] read_clocks;
+reg        old_latch;
+reg        old_joy_clk;
 reg        old_speed;
 reg        old_mute;
 
 // The printed Commander labels are SPEED-Y, COLOR-X, WINDOW-R and MUTE-L.
 wire trig_speed = COMMANDER_EN & JOY_IN[7];
 wire trig_mute  = COMMANDER_EN & JOY_IN[8];
-wire [18:0] frame_ticks = PAL ? PAL_FRAME_TICKS : NTSC_FRAME_TICKS;
 
 always @(posedge CLK) begin
 	if (RESET) begin
 		active <= 0;
 		mute   <= 0;
 		step   <= 0;
-		timer  <= 0;
+		read_clocks <= 0;
+		old_latch <= LATCH;
+		old_joy_clk <= JOY_CLK;
 		old_speed <= trig_speed;
 		old_mute  <= trig_mute;
 	end
 	else begin
+		old_latch <= LATCH;
+		old_joy_clk <= JOY_CLK;
 		old_speed <= trig_speed;
 		old_mute  <= trig_mute;
+
+		// A falling strobe starts the serial part of either an automatic
+		// 16-bit poll or one of the BIOS's eight-bit controller probes.
+		if (old_latch & ~LATCH) read_clocks <= 0;
+		else if (~LATCH & ~old_joy_clk & JOY_CLK & (read_clocks < 5'd16))
+			read_clocks <= read_clocks + 1'd1;
 
 		if (~COMMANDER_EN) begin
 			active <= 0;
 			mute   <= 0;
 			step   <= 0;
-			timer  <= 0;
 		end
 		else if (~active) begin
 			if ((trig_speed & ~old_speed) | (trig_mute & ~old_mute)) begin
 				active <= 1;
 				mute   <= ~(trig_speed & ~old_speed);
 				step   <= 0;
-				timer  <= frame_ticks - 1'b1;
 			end
 		end
-		else if (~|timer) begin
+		else if (~LATCH & ~old_joy_clk & JOY_CLK & (read_clocks == 5'd15)) begin
+			// The state just shifted into the SNES was a full controller word.
+			// Change JOY_OUT only after that word is safely captured.
 			step <= step + 1'd1;
 			if (step == (mute ? 4'd7 : 4'd8)) active <= 0;
-			else timer <= frame_ticks - 1'b1;
-		end
-		else begin
-			timer <= timer - 1'd1;
 		end
 	end
 end

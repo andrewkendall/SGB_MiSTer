@@ -815,7 +815,8 @@ sgb_commander commander
 (
 	.CLK(clk_sys),
 	.RESET(reset),
-	.PAL(PAL),
+	.LATCH(JOY_STRB),
+	.JOY_CLK(JOY1_CLK),
 	.COMMANDER_EN(status[15]),
 	.DASH_EN(status[16]),
 
