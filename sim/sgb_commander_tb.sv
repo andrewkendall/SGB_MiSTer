@@ -39,8 +39,8 @@ module sgb_commander_tb;
 	task expect_output(input [11:0] expected);
 	begin
 		if (joy_out !== expected) begin
-			$display("FAIL: expected %03h, got %03h (active=%b mute=%b step=%h clocks=%0d)",
-			         expected, joy_out, dut.active, dut.mute, dut.step, dut.read_clocks);
+			$display("FAIL: expected %03h, got %03h (active=%b pending=%b mute=%b step=%h clocks=%0d)",
+			         expected, joy_out, dut.active, dut.pending, dut.mute, dut.step, dut.read_clocks);
 			$display("      seq=%03h idle=%03h joy_in=%03h commander_en=%b",
 			         dut.seq, dut.commander_idle, joy_in, commander_en);
 			$fatal(1);
@@ -118,6 +118,13 @@ module sgb_commander_tb;
 		tick;
 		joy_in = 12'h080;
 		tick;
+		// The trigger is consumed while pending. A short BIOS probe cannot
+		// start it; the next complete poll arms step zero for the following read.
+		expect_output(12'h000);
+		multitap_probe();
+		expect_output(12'h000);
+		automatic_read();
+		expect_output(12'h100);
 		probe_then_advance(12'h100, 12'h200);
 		probe_then_advance(12'h200, 12'h000);
 		probe_then_advance(12'h000, 12'h200);
@@ -134,6 +141,8 @@ module sgb_commander_tb;
 		dash_en = 1;
 		joy_in = 12'h080;
 		tick;
+		expect_output(12'h000);
+		automatic_read();
 		probe_then_advance(12'h100, 12'h200);
 		probe_then_advance(12'h200, 12'h000);
 		probe_then_advance(12'h000, 12'h200);
@@ -149,6 +158,8 @@ module sgb_commander_tb;
 		tick;
 		joy_in = 12'h100;
 		tick;
+		expect_output(12'h000);
+		automatic_read();
 		probe_then_advance(12'h200, 12'h100);
 		probe_then_advance(12'h100, 12'h000);
 		probe_then_advance(12'h000, 12'h100);
@@ -163,7 +174,7 @@ module sgb_commander_tb;
 		tick;
 		joy_in = 12'h080;
 		tick;
-		expect_output(12'h100);
+		expect_output(12'h000);
 		commander_en = 0;
 		tick;
 		joy_in = 12'h180;

@@ -30,6 +30,7 @@ localparam [11:0] BTN_Y    = 12'h080;
 localparam [11:0] BTN_YRT  = 12'h081; // Y + Right ($4100), selects the Dash branch
 
 reg        active;
+reg        pending;
 reg        mute;
 reg  [3:0] step;
 reg  [4:0] read_clocks;
@@ -45,6 +46,7 @@ wire trig_mute  = COMMANDER_EN & JOY_IN[8];
 always @(posedge CLK) begin
 	if (RESET) begin
 		active <= 0;
+		pending <= 0;
 		mute   <= 0;
 		step   <= 0;
 		read_clocks <= 0;
@@ -67,21 +69,31 @@ always @(posedge CLK) begin
 
 		if (~COMMANDER_EN) begin
 			active <= 0;
+			pending <= 0;
 			mute   <= 0;
 			step   <= 0;
 		end
-		else if (~active) begin
+		else if (~active & ~pending) begin
 			if ((trig_speed & ~old_speed) | (trig_mute & ~old_mute)) begin
-				active <= 1;
+				pending <= 1;
 				mute   <= ~(trig_speed & ~old_speed);
-				step   <= 0;
 			end
 		end
-		else if (~LATCH & ~old_joy_clk & JOY_CLK & (read_clocks == 5'd15)) begin
+
+		if (COMMANDER_EN & ~LATCH & ~old_joy_clk & JOY_CLK &
+		    (read_clocks == 5'd15)) begin
 			// The state just shifted into the SNES was a full controller word.
-			// Change JOY_OUT only after that word is safely captured.
-			step <= step + 1'd1;
-			if (step == (mute ? 4'd7 : 4'd8)) active <= 0;
+			// A new command starts here so step zero is guaranteed to precede
+			// the next latch, even if its trigger arrived during this read.
+			if (active) begin
+				step <= step + 1'd1;
+				if (step == (mute ? 4'd7 : 4'd8)) active <= 0;
+			end
+			else if (pending) begin
+				active <= 1;
+				pending <= 0;
+				step <= 0;
+			end
 		end
 	end
 end
