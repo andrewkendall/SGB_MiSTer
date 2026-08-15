@@ -145,7 +145,7 @@ wire reset = RESET | buttons[1] | status[0] | cart_download | gb_cart_download |
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// X  XXXXX XXXXXX  X XX  XXXXXXXXX XXXXXXXXXXXXX     XXX
+// X  XXXXX XXXXXXXXX XX  XXXXXXXXX XXXXXXXXXXXXX     XXX
 
 `include "build_id.v"
 parameter CONF_STR = {
@@ -191,6 +191,8 @@ parameter CONF_STR = {
 	"P2-;",
 	"P2OH,Multitap,Disabled,Port2;",
 	"P2O34,Serial,OFF,SNAC SNES,SNAC GB;",
+	"P2O[15],Controller,SNES,SGB Commander;",
+	"P2O[16],Commander Speed,3 modes,4 modes+Dash;",
 	"P2-;",
 
 	"-;",
@@ -803,9 +805,27 @@ video_mixer #(.LINE_LENGTH(520), .GAMMA(1)) video_mixer
 ////////////////////////////  I/O PORTS  ////////////////////////////////
 
 wire       JOY_STRB;
+wire       JOY1_CLK;
+
+// Commander functions operate only from controller port 1.
+// The SGB/SFC switch changes the functions of Y, X, R, and L.
+wire [12:0] joy_p1 = (joy_swap ^ snac_snes) ? joy1 : joy0;
+wire [11:0] joy_p1_cmd;
+
+sgb_commander commander
+(
+	.CLK(clk_sys),
+	.RESET(reset),
+	.LATCH(JOY_STRB),
+	.JOY_CLK(JOY1_CLK),
+	.COMMANDER_EN(status[15]),
+	.DASH_EN(status[16]),
+
+	.JOY_IN(joy_p1[11:0]),
+	.JOY_OUT(joy_p1_cmd)
+);
 
 wire [1:0] JOY1_DO;
-wire       JOY1_CLK;
 wire       JOY1_P6;
 ioport port1
 (
@@ -816,7 +836,7 @@ ioport port1
 	.PORT_P6(JOY1_P6),
 	.PORT_DO(JOY1_DO),
 
-	.JOYSTICK1((joy_swap ^ snac_snes) ? joy1 : joy0),
+	.JOYSTICK1(joy_p1_cmd),
 
 	.MOUSE(ps2_mouse),
 	.MOUSE_EN(mouse_mode[0])
