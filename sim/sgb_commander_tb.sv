@@ -119,11 +119,20 @@ module sgb_commander_tb;
 		joy_in = 12'h080;
 		tick;
 		// The trigger is consumed while pending. A short BIOS probe cannot
-		// start it; the next complete poll arms step zero for the following read.
+		// start it. The ninth clock of an automatic poll arms step zero for
+		// the following read, safely after ioport latched the current word.
 		expect_output(12'h000);
 		multitap_probe();
 		expect_output(12'h000);
-		automatic_read();
+		latch = 1;
+		repeat (2) tick;
+		latch = 0;
+		tick;
+		pulse_clocks(8);
+		expect_output(12'h000);
+		pulse_clocks(1);
+		expect_output(12'h100);
+		pulse_clocks(7);
 		expect_output(12'h100);
 		probe_then_advance(12'h100, 12'h200);
 		probe_then_advance(12'h200, 12'h000);
@@ -181,8 +190,8 @@ module sgb_commander_tb;
 		tick;
 		expect_output(12'h180);
 
-		// A trigger arriving halfway through a full poll must not let that
-		// already-latched word consume step zero. It arms the next poll instead.
+		// A trigger arriving just before the automatic-read marker must not let
+		// the already-latched word consume step zero.
 		commander_en = 1;
 		joy_in = 0;
 		tick;
@@ -195,6 +204,25 @@ module sgb_commander_tb;
 		tick;
 		expect_output(12'h000);
 		pulse_clocks(8);
+		expect_output(12'h100);
+
+		// A trigger arriving after the marker waits for the next automatic read.
+		commander_en = 0;
+		joy_in = 0;
+		tick;
+		commander_en = 1;
+		tick;
+		latch = 1;
+		repeat (2) tick;
+		latch = 0;
+		tick;
+		pulse_clocks(9);
+		joy_in = 12'h080;
+		tick;
+		expect_output(12'h000);
+		pulse_clocks(7);
+		expect_output(12'h000);
+		automatic_read();
 		expect_output(12'h100);
 
 		$display("PASS: sgb_commander");
