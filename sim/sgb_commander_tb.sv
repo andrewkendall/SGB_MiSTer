@@ -48,15 +48,9 @@ module sgb_commander_tb;
 	end
 	endtask
 
-	// Model a controller transaction. The SGB BIOS's multitap probes contain
-	// eight clocks; the SNES automatic controller poll contains sixteen.
-	task controller_read(input integer clocks);
+	task pulse_clocks(input integer clocks);
 		integer i;
 	begin
-		latch = 1;
-		repeat (2) tick;
-		latch = 0;
-		tick;
 		for (i = 0; i < clocks; i = i + 1) begin
 			joy_clk = 1;
 			tick;
@@ -66,14 +60,36 @@ module sgb_commander_tb;
 	end
 	endtask
 
+	// The BIOS's multitap check reads eight bits while the strobe is high and
+	// eight after it falls. Neither phase is a complete controller word.
+	task multitap_probe;
+	begin
+		latch = 1;
+		tick;
+		pulse_clocks(8);
+		latch = 0;
+		tick;
+		pulse_clocks(8);
+	end
+	endtask
+
+	// The automatic SNES poll shifts all sixteen controller bits.
+	task automatic_read;
+	begin
+		latch = 1;
+		repeat (2) tick;
+		latch = 0;
+		tick;
+		pulse_clocks(16);
+	end
+	endtask
+
 	task probe_then_advance(input [11:0] current, input [11:0] next);
 	begin
 		expect_output(current);
-		controller_read(8);
+		multitap_probe();
 		expect_output(current);
-		controller_read(8);
-		expect_output(current);
-		controller_read(16);
+		automatic_read();
 		expect_output(next);
 	end
 	endtask
