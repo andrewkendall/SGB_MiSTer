@@ -735,13 +735,18 @@ wire VSYNC_out;
 wire HBlank_out;
 wire VBlank_out;
 wire DOTCLK_out;
+wire [4:0] commander_debug_max_clocks;
+wire [7:0] commander_debug_full_reads;
+wire       commander_debug_active;
+wire       commander_debug_pending;
 
 always @(posedge clk_sys) begin
 	DOTCLK <= DOTCLK_out;
 	if(DOTCLK ^ DOTCLK_out) begin
-		R <= R_out;
-		G <= G_out;
-		B <= B_out;
+		// Temporary diagnostic display, selected by Commander 4-mode.
+		R <= (status[15] & status[16]) ? {commander_debug_max_clocks[3:0], 4'b0000} : R_out;
+		G <= (status[15] & status[16]) ? commander_debug_full_reads : G_out;
+		B <= (status[15] & status[16]) ? {6'b000000, commander_debug_pending, commander_debug_active} : B_out;
 		HSYNC  <= HSYNC_out;
 		VSYNC  <= VSYNC_out;
 		HBlank <= ~HBlank_out;
@@ -821,7 +826,11 @@ sgb_commander commander
 	.DASH_EN(status[16]),
 
 	.JOY_IN(joy_p1[11:0]),
-	.JOY_OUT(joy_p1_cmd)
+	.JOY_OUT(joy_p1_cmd),
+	.DEBUG_MAX_CLOCKS(commander_debug_max_clocks),
+	.DEBUG_FULL_READS(commander_debug_full_reads),
+	.DEBUG_ACTIVE(commander_debug_active),
+	.DEBUG_PENDING(commander_debug_pending)
 );
 
 wire [1:0] JOY1_DO;
