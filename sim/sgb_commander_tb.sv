@@ -181,6 +181,22 @@ module sgb_commander_tb;
 		tick;
 		expect_output(12'h180);
 
+		// A trigger arriving halfway through a full poll must not let that
+		// already-latched word consume step zero. It arms the next poll instead.
+		commander_en = 1;
+		joy_in = 0;
+		tick;
+		latch = 1;
+		repeat (2) tick;
+		latch = 0;
+		tick;
+		pulse_clocks(8);
+		joy_in = 12'h080;
+		tick;
+		expect_output(12'h000);
+		pulse_clocks(8);
+		expect_output(12'h100);
+
 		$display("PASS: sgb_commander");
 		$finish;
 	end
