@@ -7,10 +7,18 @@ on:
 
 jobs:
   build:
+    name: build-seed-${{ matrix.seed }}
     runs-on: ubuntu-latest
     timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [2, 3, 4, 5]
     steps:
       - uses: actions/checkout@v4
+
+      - name: Select fitter seed
+        run: sed -i "s/set_global_assignment -name SEED 1/set_global_assignment -name SEED ${{ matrix.seed }}/" SGB.qsf
 
       - name: Compile core (Quartus 17.0)
         run: docker run --rm -v "$PWD:/build" raetro/quartus:17.0 quartus_sh --flow compile SGB
@@ -27,7 +35,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: SGB-rbf
+          name: SGB-rbf-seed-${{ matrix.seed }}
           path: |
             SGB_*.rbf
             output_files/SGB.map.rpt
